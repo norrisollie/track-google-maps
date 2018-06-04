@@ -14,12 +14,21 @@ app.setupDom = function() {
     app.dom.stationMarkerDataArr
     app.dom.stations
 
-    app.dom.markerArr = [];
-    app.dom.mapStationsContainer = document.getElementById("map-stations-container")
-    app.dom.stationsContainer = document.getElementById("stations-container")
-    app.dom.mapContainer = document.getElementById("map-container");
-    app.dom.logoContainer = document.getElementById("logo-container");
-    app.dom.container = document.getElementById("container");
+    app.dom.directionsService
+    app.dom.directionsDisplay
+
+    app.dom.mode = "WALKING";
+    app.dom.targetCoords
+
+    app.dom.markerArr               = [];
+    app.dom.mapStationsContainer    = document.getElementById("map-stations-container")
+    app.dom.stationsContainer       = document.getElementById("stations-container")
+    app.dom.map                     = document.getElementById("map-container");
+    app.dom.map                     = document.getElementById("map");
+    app.dom.logoContainer           = document.getElementById("logo-container");
+    app.dom.container               = document.getElementById("container");
+    app.dom.directionsContainer     = document.getElementById("direction-container");
+    app.dom.transportModeButtons    = document.querySelectorAll(".mode-buttons");
 
 
 };
@@ -27,14 +36,19 @@ app.setupDom = function() {
 // setup map to display stations
 app.setupMap = function(stationMarkerDataArr) {
 
+    app.dom.directionsService = new google.maps.DirectionsService;
+    app.dom.directionsDisplay = new google.maps.DirectionsRenderer;
+
     // create new google map
     // set the map type, center position, and other seetings
-    app.dom.map = new google.maps.Map(app.dom.mapContainer, {
+    app.dom.map = new google.maps.Map(app.dom.map, {
         mapTypeId: "roadmap",
         center: { lat: app.dom.latitude, lng: app.dom.longitude },
         disableDefaultUI: true,
         zoom: 100
     });
+
+    app.dom.directionsDisplay.setMap(app.dom.map);
 
     app.dom.bounds = new google.maps.LatLngBounds();
 
@@ -57,13 +71,51 @@ app.setupMap = function(stationMarkerDataArr) {
 
         // used toi specify the boundaries of the map so you can see all stations in the same view
         app.dom.bounds.extend(app.dom.marker.position);
+
+        // set the boundaries of the map
+        setTimeout(function() {
+            app.dom.map.fitBounds(app.dom.bounds);
+        }, 500)
     }
 
-    // set the boundaries of the map
-    setTimeout(function() {
-        app.dom.map.fitBounds(app.dom.bounds);
-    }, 500)
 
+
+
+}
+
+app.clickTransportTypeButtons = function(e) {
+
+    var target = e.currentTarget;
+    app.dom.mode = e.currentTarget.dataset.mode
+
+    // console.log(targetMode)
+
+    app.createDirectionsRequest(app.dom.targetCoords, app.dom.mode)
+
+
+
+}
+
+app.createDirectionsRequest = function(endLocation, mode) {
+
+    console.log("wah!")
+
+    var start = app.dom.latitude + "," + app.dom.longitude
+    var end = endLocation
+
+
+
+    var request = {
+        origin: start,
+        destination: end,
+        travelMode: app.dom.mode
+    };
+
+    app.dom.directionsService.route(request, function(result, status) {
+        if (status == 'OK') {
+            app.dom.directionsDisplay.setDirections(result);
+        }
+    });
 
 }
 
@@ -76,7 +128,6 @@ app.clickMarkerHandler = function() {
     var stations = document.querySelectorAll(".stations");
 
     var markerStationCode = this.station_code;
-
 
     stations.forEach(function(element) {
 
@@ -92,17 +143,38 @@ app.clickStationsHandler = function(e) {
 
     var target = e.currentTarget;
     var targetId = e.currentTarget.dataset.id;
+    app.dom.targetCoords = target.dataset.coords
 
     var stations = document.querySelectorAll(".stations");
 
     stations.forEach(function(element) {
         element.classList.remove("active");
+        // element.style.gridRow = "auto";
     });
 
     target.classList.add("active");
+    
 
     app.dom.map.panTo(app.dom.markerArr[targetId].getPosition());
     app.dom.map.setZoom(15);
+
+    app.dom.directionsDisplay.set('directions', null);
+
+
+
+}
+
+app.clickDirectionsHandler = function(e) {
+
+    var target = e.target;
+    console.log(target);
+
+    app.dom.targetCoords = e.currentTarget.parentNode.parentNode.dataset.coords
+
+    console.log(app.dom.targetCoords);
+
+    app.createDirectionsRequest(app.dom.targetCoords, app.transportMode)
+
 }
 
 app.getUserLocation = function() {
@@ -188,19 +260,19 @@ app.nearestStationsResponseHandler = function(data) {
 
         // add class to each div
         stationsArr[i].classList.add("stations");
-
         stationsArr[i].dataset.code = stationCode
+        stationsArr[i].dataset.coords = stationLatitude + "," + stationLongitude
 
         stationsArr[i].dataset.id = app.dom.markerCounter++
 
             // insert info in to each div
-            stationsArr[i].innerHTML = "<b>Name:</b> " + stationName + "<br>" +
-            "<b>Code:</b> " + stationCode + "<br>" +
-            "<b>Lat:</b> " + stationLatitude + "<br>" +
-            "<b>Lon:</b> " + stationLongitude + "<br>" +
-            "<b>Distance:</b> " + stationDistance
+            stationsArr[i].innerHTML = "<div id='logo-name-container'><span class='nr-logo'></span><span class='station-name'>" + stationName + "</span></div><div id='directions-container'><button class='directions'>Directions</button></div>"
 
         // add event listener to stations divs
+        // changes marker position on mouseover of div element
+        stationsArr[i].addEventListener("click", app.clickStationsHandler);
+
+
         stationsArr[i].addEventListener("click", app.clickStationsHandler)
 
         var stationCoordsArr = [];
@@ -216,7 +288,15 @@ app.nearestStationsResponseHandler = function(data) {
 
     app.setupMap(app.dom.stationMarkerDataArr);
 
-    app.dom.logoContainer.style.height = "100px";
+    var directionsButton = document.querySelectorAll(".directions")
+
+    for (var i = 0; i < directionsButton.length; i++) {
+
+        directionsButton[i].addEventListener("click", app.clickDirectionsHandler);
+    }
+
+
+    // app.dom.logoContainer.style.height = "100px";
     // app.dom.container.style.gridTemplateRows = "100px";
 }
 
@@ -298,13 +378,24 @@ app.ajaxRequest = function(url, callback) {
 
 }
 
+app.addEventListeners = function() {
+
+    app.dom.transportModeButtons.forEach(function(element) {
+        element.addEventListener("click", app.clickTransportTypeButtons);
+    });
+
+
+
+}
+
 app.init = function() {
 
     // run function to setup dom elements
     app.setupDom();
-
     // run function to get the user's location
     app.getUserLocation();
+
+    app.addEventListeners();
 
 };
 
